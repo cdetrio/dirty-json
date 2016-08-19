@@ -145,7 +145,6 @@ describe("parser", function () {
 			compareResultsToValid('{\'test\': 5}', '{"test": 5}');
 		});
 
-
 		it('should handle single-quoted object values', function() {
 			compareResultsToValid('{\'test\': \'5\'}', '{"test": "5"}');
 		});
@@ -165,6 +164,31 @@ describe("parser", function () {
 		it('should handle quotes-in-quotes (object)', function() {
 			compareResultsToValid('{"test0": false, "test": "some "quoted" text", "test1": 5}', '{"test0": false, "test": "some \\"quoted\\" text", "test1": 5}');
 		});
+
+		it('should handle non-quoted string values', function() {
+			compareResultsToValid('{"this": that}', '{"this": "that"}');
+		});
+
+		it('should handle non-quoted string values', function() {
+			compareResultsToValid('{"this": that, "another": "maybe"}', '{"this": "that", "another": "maybe"}');
+		});
+
+		it('should handle non-quoted string values', function() {
+			compareResultsToValid('{"this": "that", "another": maybe}', '{"this": "that", "another": "maybe"}');
+		});
+
+		it('should handle non-quoted string values', function() {
+			compareResultsToValid('{"this": that, "another": maybe}', '{"this": "that", "another": "maybe"}');
+		});
+
+		it('should handle non-quoted string values in lists', function() {
+			compareResultsToValid('["this", that]', '["this", "that"]');
+		});
+
+		it('should handle non-quoted string values in lists', function() {
+			compareResultsToValid('["this", that, "another", maybe]', '["this", "that", "another", "maybe"]');
+		});
+
 
 
 		describe("with new lines", function() {
@@ -231,7 +255,37 @@ describe("parser", function () {
 			});
 		});
 
+	});
+
+
+
+	describe("should throw exceptions for JSON that is too malformed to deal with", function () {
+		it('should throw on }}', function () {
+			assert.throws( () => {
+				var r = dJSON.parse('}}');
+  		},
+  			Error
+			);
+		});
+
+		it('should throw on ]:"test"', function () {
+			assert.throws( () => {
+				var r = dJSON.parse(']:"test"');
+  		},
+  			Error
+			);
+		});
+
+
+		it('should throw on "test"', function () {
+			assert.throws( () => {
+				var r = dJSON.parse('"test"');
+  		},
+  			Error
+			);
+		});
 
 
 	});
+
 });

@@ -209,6 +209,36 @@ describe("lexer", function () {
 			assert.equal(res[2].value, " test");
 		});
 
+		it('should parse integers as integers', function () {
+			let res = lexer.getAllTokens('[4]');
+			assert.equal(res.length, 3);
+			assert.equal(res[0].type, LEX_LB);
+			assert.equal(res[1].type, LEX_INT);
+			assert.equal(res[1].value, 4);
+			assert.equal(res[2].type, LEX_RB);
+		});
+
+		it('should parse floats as floats', function () {
+			let res = lexer.getAllTokens('[4.0]');
+			assert.equal(res.length, 3);
+			assert.equal(res[0].type, LEX_LB);
+			assert.equal(res[1].type, LEX_FLOAT);
+			assert.equal(res[1].value, 4.0);
+			assert.equal(res[2].type, LEX_RB);
+		});
+
+		it('should handle newlines in quotes', function () {
+			let res = lexer.getAllTokens('{ "test0": "a '+"\n"+'string" }');
+			assert.equal(res.length, 5);
+			assert.equal(res[0].type, LEX_LCB);
+			assert.equal(res[1].type, LEX_QUOTE);
+			assert.equal(res[1].value, "test0");
+			assert.equal(res[2].type, LEX_COLON);
+			assert.equal(res[3].type, LEX_QUOTE);
+			assert.equal(res[3].value, "a \nstring");
+			assert.equal(res[4].type, LEX_RCB);
+		});
+
 		it('should handle Solidity hex literals', function () {
 			// http://solidity.readthedocs.io/en/latest/types.html#hexadecimal-literals
 			let res = lexer.getAllTokens('hex:"00ff"');

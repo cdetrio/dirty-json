@@ -328,29 +328,16 @@ function reduce(stack) {
 		break;
 
 	case LEX_COVALUE:
-		if (is(peek(stack), LEX_KEY)) {
+
+		if (is(peek(stack), LEX_KEY) || is(peek(stack), LEX_VALUE) || is(peek(stack), LEX_VLIST)) {
 			log("Rule 16");
 			var key = stack.pop();
 			stack.push({'type': LEX_KV, 'key': key.value, 'value': next.value});
 			return true;
 		}
 
-		if (is(peek(stack), LEX_VALUE)) {
-			log("Rule 16a");
-			var key = stack.pop();
-			stack.push({'type': LEX_KV, 'key': key.value, 'value': next.value});
-			return true;
-		}
+		throw new Error("Got a :value that can't be handled");
 
-		if (is(peek(stack), LEX_VLIST)) {
-			log("Rule 16b");
-			var key = stack.pop();
-			key.value.forEach(function (i) {
-				stack.push({'type': LEX_KV, 'key': i, 'value': next.value});
-			});
-			return true;
-		}
-		break;
 
 	case LEX_KV:
 		if (is(last(stack, 0), LEX_COMMA) && is(last(stack, 1), LEX_KVLIST)) {
@@ -453,7 +440,8 @@ function reduce(stack) {
 			stack.push({type: LEX_RCB});
 			return true;
 		}
-		break;
+
+		throw new Error("Found } that I can't handle.");
 	}
 
 
@@ -561,7 +549,6 @@ function compileOST(tree) {
 		return toR;
 	}
 
-
 	if (is(tree, LEX_OBJ)) {
 		var toR = {};
 		if (tree.value == null)
@@ -572,19 +559,9 @@ function compileOST(tree) {
 		return toR;
 	}
 
-	/* istanbul ignore else  */
 	if (is(tree, LEX_LIST)) {
 		return compileOST(tree.value);
 	}
 
-	/* istanbul ignore next */
-	console.error("Uncaught type in compile: " + JSON.stringify(tree));
-
-	/* istanbul ignore next */
-	return null;
+	throw new Error("Uncaught type in compile: " + JSON.stringify(tree));
 }
-
-
-/*parse('[4]').then(function (res) {
-	console.log(res);
-});*/
