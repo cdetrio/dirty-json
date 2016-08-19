@@ -1,22 +1,17 @@
-# dirty-json
+# dirty-json-hex
 
-[ ![Codeship Status for RyanMarcus/dirty-json](https://www.codeship.io/projects/cbc19870-2e42-0132-d30c-4adef3b19db7/status)](https://www.codeship.io/projects/39346) ![Dependency monitor](https://david-dm.org/ryanmarcus/dirty-json.svg) [![Coverage Status](https://coveralls.io/repos/github/RyanMarcus/dirty-json/badge.svg?branch=master)](https://coveralls.io/github/RyanMarcus/dirty-json?branch=master) ![NPM version](https://badge.fury.io/js/dirty-json.svg)
-
-
-[ ![AGPL](http://www.gnu.org/graphics/agplv3-155x51.png) ](http://www.gnu.org/licenses/agpl-3.0.en.html)
-
+### forked from [http://github.com/RyanMarcus/dirty-json](dirty-json) to support [Solidity hex literals](http://solidity.readthedocs.io/en/latest/types.html#hexadecimal-literals), for use with [browser-solidity](https://github.com/ethereum/browser-solidity).
 
 ```
-npm install dirty-json
+npm install dirty-json-hex
 ```
-
 
 
 A JSON parser that tries to handle non-conforming or otherwise invalid JSON.
 
 I still need to make a lot of the internals of the parser asynchronous.
 
-You can play around with a demo here: [http://rmarcus.info/dirty-json/](http://rmarcus.info/dirty-json)
+You can play around with a demo here: [http://cdetrio.github.io/dirty-json-hex](http://cdetrio.github.io/dirty-json-hex)
 
 You might also be interested in [my blog post about the parser](http://rmarcus.info/blog/2014/10/05/dirty-json-parser.html).
 
@@ -81,11 +76,11 @@ Currently `dirty-json` uses a lexer [powered by lex](https://github.com/aaditmsh
 > it under the terms of the GNU Affero General Public License as published by
 > the Free Software Foundation, either version 3 of the License, or
 > (at your option) any later version.
-> 
+>
 > dirty-json is distributed in the hope that it will be useful,
 > but WITHOUT ANY WARRANTY; without even the implied warranty of
 > MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 > GNU Affero General Public License for more details.
-> 
+>
 > You should have received a copy of the GNU Affero General Public License
 > along with dirty-json.  If not, see <http://www.gnu.org/licenses/>.

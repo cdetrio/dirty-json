@@ -142,10 +142,3 @@ module.exports.getAllTokens = getAllTokens;
 function getAllTokens(str) {
 	return lexString(str);
 }
-
-
-
-
-/*getAllTokens('{ "test0": "a '+"\n"+'string" }').then(function(res) {
- 	console.log(res);
-});*/
