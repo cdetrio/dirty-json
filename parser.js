@@ -1,25 +1,23 @@
 // Copyright 2016, 2015, 2014 Ryan Marcus
 // This file is part of dirty-json.
-// 
+//
 // dirty-json is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-// 
+//
 // dirty-json is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Affero General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU Affero General Public License
 // along with dirty-json.  If not, see <http://www.gnu.org/licenses/>.
 
-"use strict";
-
-var fs = require('fs');
-var Stream = require('stream');
+//var fs = require('fs');
+//var Stream = require('stream');
 var lexer = require("./lexer");
-var Q = require('q');
+
 
 // terminals
 const LEX_KV = 0;
@@ -38,6 +36,8 @@ const LEX_RB = 12;
 const LEX_RCB = 13;
 const LEX_TOKEN = 14;
 const LEX_VALUE = 15;
+const LEX_HEXLITERAL = 16;
+const LEX_HEXNUM = 17;
 
 // non-terminals
 const LEX_COLON = -1;
@@ -47,13 +47,13 @@ const LEX_LB = -4;
 const LEX_DOT = -5;
 
 
-Array.prototype.peek = function() {
-	return this[this.length - 1];
-};
+function peek(arr) {
+	return arr[arr.length - 1];
+}
 
-Array.prototype.last = function(i) {
-	return this[this.length - (1 + i)];
-};
+function last(arr, i) {
+	return arr[arr.length - (1 + i)];
+}
 
 
 function is(obj, prop) {
@@ -68,57 +68,49 @@ function log(str) {
 
 module.exports.parse = parse;
 function parse(text) {
-	var toR = Q.defer();
 
 	var stack = [];
 
 	var tokens = [];
-	var emit = function(t) {
-		tokens.push(t);
-	};
+	var tokens = lexer.lexString(text);
 
-	try {
-		lexer.lexString(text, emit);
-		
-		
-		for (var i = 0; i < tokens.length; i++) {
-			log("Shifting " + tokens[i].type);
-			stack.push(tokens[i]);
+	for (var i = 0; i < tokens.length; i++) {
+		log("Shifting " + tokens[i].type);
+		stack.push(tokens[i]);
+		log(stack);
+		log("Reducing...");
+		while (reduce(stack)) {
 			log(stack);
 			log("Reducing...");
-			while (reduce(stack)) {
-				log(stack);
-				log("Reducing...");
-			}
-			
 		}
-		
-		toR.resolve(compileOST(stack[0]));
-	} catch (e) {
-		toR.reject(e);
 	}
-	
-	return toR.promise;
+
+	return compileOST(stack[0]);
+
 }
+
+
+
+
 
 function reduce(stack) {
 	var next = stack.pop();
 
 	switch(next.type) {
+
 	case LEX_KEY:
 		if (next.value == "true") {
 			log("Rule 5");
 			stack.push({'type': LEX_BOOLEAN, 'value': "true"});
 			return true;
 		}
-		
-		
+
 		if (next.value == "false") {
 			log("Rule 6");
 			stack.push({'type': LEX_BOOLEAN, 'value': "false"});
 			return true;
 		}
-		
+
 		if (next.value == "null") {
 			log("Rule 7");
 			stack.push({'type': LEX_VALUE, 'value': null});
@@ -127,25 +119,38 @@ function reduce(stack) {
 		break;
 
 	case LEX_TOKEN:
-		if (is(stack.peek(), LEX_KEY)) {
+		if (is(peek(stack), LEX_KEY)) {
 			log("Rule 11a");
-			stack.peek().value += next.value;
+			peek(stack).value += next.value;
 			return true;
 		}
-		
+
 		log("Rule 11c");
 		stack.push({type: LEX_KEY, value: [ next.value ] });
 		return true;
 
 
 	case LEX_INT:
-		if (is(next, LEX_INT) && is(stack.peek(), LEX_KEY)) {
+		if (is(next, LEX_INT) && is(peek(stack), LEX_KEY)) {
 			log("Rule 11b");
-			stack.peek().value += next.value;
+			peek(stack).value += next.value;
 			return true;
 		}
 
 		log("Rule 11f");
+		next.type = LEX_VALUE;
+		stack.push(next);
+		return true;
+
+
+	case LEX_HEXNUM:
+		//log("Rule 11g");
+		next.type = LEX_VALUE;
+		stack.push(next);
+		return true;
+
+	case LEX_HEXLITERAL:
+		//log("Rule 11g");
 		next.type = LEX_VALUE;
 		stack.push(next);
 		return true;
@@ -179,8 +184,9 @@ function reduce(stack) {
 		stack.push(next);
 		return true;
 
+
 	case LEX_VALUE:
-		if (is(stack.peek(), LEX_COMMA)) {
+		if (is(peek(stack), LEX_COMMA)) {
 			log("Rule 12");
 			next.type = LEX_CVALUE;
 			stack.pop();
@@ -188,7 +194,7 @@ function reduce(stack) {
 			return true;
 		}
 
-		if (is(stack.peek(), LEX_COLON)) {
+		if (is(peek(stack), LEX_COLON)) {
 			log("Rule 13");
 			next.type = LEX_COVALUE;
 			stack.pop();
@@ -196,41 +202,41 @@ function reduce(stack) {
 			return true;
 		}
 
-		if (is(stack.peek(), LEX_KEY) && is(stack.last(1), LEX_VALUE)) {
+		if (is(peek(stack), LEX_KEY) && is(last(stack, 1), LEX_VALUE)) {
 			log("Error rule 1");
-			let middleVal = stack.pop();
-			stack.peek().value += '"' + middleVal.value + '"';
-			stack.peek().value += next.value;
+			var middleVal = stack.pop();
+			peek(stack).value += '"' + middleVal.value + '"';
+			peek(stack).value += next.value;
 			return true;
 		}
 
-		if (is(stack.peek(), LEX_KEY) && is(stack.last(1), LEX_VLIST)) {
+		if (is(peek(stack), LEX_KEY) && is(last(stack, 1), LEX_VLIST)) {
 			log("Error rule 2");
-			let middleVal = stack.pop();
-			let oldLastVal = stack.peek().value.pop();
+			var middleVal = stack.pop();
+			var oldLastVal = peek(stack).value.pop();
 			oldLastVal +=  '"' + middleVal.value + '"';
 			oldLastVal += next.value;
-			
-			stack.peek().value.push(oldLastVal);
-			
+
+			peek(stack).value.push(oldLastVal);
+
 			return true;
 		}
-		
-		if (is(stack.peek(), LEX_KEY) && is(stack.last(1), LEX_KVLIST)) {
+
+		if (is(peek(stack), LEX_KEY) && is(last(stack, 1), LEX_KVLIST)) {
 			log("Error rule 3");
-			let middleVal = stack.pop();
-			let oldLastVal = stack.peek().value.pop();
+			var middleVal = stack.pop();
+			var oldLastVal = peek(stack).value.pop();
 			oldLastVal.value +=  '"' + middleVal.value + '"';
 			oldLastVal.value += next.value;
-			
-			stack.peek().value.push(oldLastVal);
-			
+
+			peek(stack).value.push(oldLastVal);
+
 			return true;
 		}
 		break;
 
 	case LEX_LIST:
-		if (is(next, LEX_LIST) && is(stack.peek(), LEX_COMMA)) {
+		if (is(next, LEX_LIST) && is(peek(stack), LEX_COMMA)) {
 			log("Rule 12a");
 			next.type = LEX_CVALUE;
 			stack.pop();
@@ -238,7 +244,7 @@ function reduce(stack) {
 			return true;
 		}
 
-		if (is(stack.peek(), LEX_COLON)) {
+		if (is(peek(stack), LEX_COLON)) {
 			log("Rule 13a");
 			next.type = LEX_COVALUE;
 			stack.pop();
@@ -248,17 +254,17 @@ function reduce(stack) {
 		break;
 
 	case LEX_OBJ:
-		if (is(stack.peek(), LEX_COMMA)) {
+		if (is(peek(stack), LEX_COMMA)) {
 			log("Rule 12b");
-			let toPush = {'type': LEX_CVALUE, 'value': next};
+			var toPush = {'type': LEX_CVALUE, 'value': next};
 			stack.pop();
 			stack.push(toPush);
 			return true;
 		}
 
-		if (is(stack.peek(), LEX_COLON)) {
+		if (is(peek(stack), LEX_COLON)) {
 			log("Rule 13b");
-			let toPush = {'type': LEX_COVALUE, 'value': next};
+			var toPush = {'type': LEX_COVALUE, 'value': next};
 			stack.pop();
 			stack.push(toPush);
 			return true;
@@ -266,43 +272,42 @@ function reduce(stack) {
 		break;
 
 	case LEX_CVALUE:
-		if (is(stack.peek(), LEX_VLIST)) {
+		if (is(peek(stack), LEX_VLIST)) {
 			log("Rule 14");
-			stack.peek().value.push(next.value);
+			peek(stack).value.push(next.value);
 			return true;
 		}
-		
-		
+
 		log("Rule 15");
 		stack.push({'type': LEX_VLIST, 'value': [next.value]});
 		return true;
 
 	case LEX_VLIST:
-		if (is(stack.peek(), LEX_VALUE)) {
+		if (is(peek(stack), LEX_VALUE)) {
 			log("Rule 15a");
-			next.value.unshift(stack.peek().value);
+			next.value.unshift(peek(stack).value);
 			stack.pop();
 			stack.push(next);
 			return true;
 		}
-		
-		if (is(stack.peek(), LEX_LIST)) {
+
+		if (is(peek(stack), LEX_LIST)) {
 			log("Rule 15b");
-			next.value.unshift(stack.peek().value);
+			next.value.unshift(peek(stack).value);
 			stack.pop();
 			stack.push(next);
 			return true;
 		}
-		
-		if (is(stack.peek(), LEX_OBJ)) {
+
+		if (is(peek(stack), LEX_OBJ)) {
 			log("Rule 15c");
-			next.value.unshift(stack.peek());
+			next.value.unshift(peek(stack));
 			stack.pop();
 			stack.push(next);
 			return true;
 		}
-		
-		if (is(stack.peek(), LEX_KEY) && (stack.last(1), LEX_COMMA)) {
+
+		if (is(peek(stack), LEX_KEY) && (last(stack, 1), LEX_COMMA)) {
 			log("Error rule 7");
 			var l = stack.pop();
 			//stack.pop();
@@ -315,35 +320,45 @@ function reduce(stack) {
 			return true;
 		}
 
-		if (is(stack.peek(), LEX_VLIST)) {
+		if (is(peek(stack), LEX_VLIST)) {
 			log("Error rule 8");
-			stack.peek().value.push(next.value[0]);
+			peek(stack).value.push(next.value[0]);
 			return true;
 		}
 		break;
 
 	case LEX_COVALUE:
-
-		if (is(stack.peek(), LEX_KEY) || is(stack.peek(), LEX_VALUE) || is(stack.peek(), LEX_VLIST)) {
+		if (is(peek(stack), LEX_KEY)) {
 			log("Rule 16");
 			var key = stack.pop();
 			stack.push({'type': LEX_KV, 'key': key.value, 'value': next.value});
 			return true;
 		}
 
+		if (is(peek(stack), LEX_VALUE)) {
+			log("Rule 16a");
+			var key = stack.pop();
+			stack.push({'type': LEX_KV, 'key': key.value, 'value': next.value});
+			return true;
+		}
 
-		throw new Error("Got a :value that can't be handled");
-		
+		if (is(peek(stack), LEX_VLIST)) {
+			log("Rule 16b");
+			var key = stack.pop();
+			key.value.forEach(function (i) {
+				stack.push({'type': LEX_KV, 'key': i, 'value': next.value});
+			});
+			return true;
+		}
+		break;
+
 	case LEX_KV:
-		if (is(stack.last(0), LEX_COMMA) && is(stack.last(1), LEX_KVLIST)) {
+		if (is(last(stack, 0), LEX_COMMA) && is(last(stack, 1), LEX_KVLIST)) {
 			log("Rule 17");
-			stack.last(1).value.push(next);
+			last(stack, 1).value.push(next);
 			stack.pop();
 			return true;
-		}	
-
-
-
+		}
 
 		log("Rule 18");
 		stack.push({'type': LEX_KVLIST, 'value': [next]});
@@ -351,35 +366,45 @@ function reduce(stack) {
 
 
 	case LEX_KVLIST:
-		if (is(stack.peek(), LEX_KVLIST)) {
+		if (is(peek(stack), LEX_KVLIST)) {
 			log("Rule 17a");
 			next.value.forEach(function (i) {
-				stack.peek().value.push(i);
+				peek(stack).value.push(i);
 			});
-			
+
 			return true;
 		}
 
-	
+		if (is(peek(stack), LEX_KEY) && (last(stack, 1), LEX_COLON)) {
+			log("Error rule 5");
+			var l = stack.pop();
+			//stack.pop();
+			stack.push({type: LEX_VALUE, 'value': l.value});
+			log("Start subreduce... (" + l.value + ")");
+			while(reduce(stack));
+			log("End subreduce");
+			stack.push(next);
+			return true;
+		}
 		break;
-		
+
 	case LEX_RB:
-		if (is(stack.peek(), LEX_VLIST) && is(stack.last(1), LEX_LB)) {
+		if (is(peek(stack), LEX_VLIST) && is(last(stack, 1), LEX_LB)) {
 			log("Rule 19");
-			let l = stack.pop();
+			var l = stack.pop();
 			stack.pop();
 			stack.push({'type': LEX_LIST, 'value': l.value});
 			return true;
 		}
-		
-		if (is(stack.peek(), LEX_LB)) {
+
+		if (is(peek(stack), LEX_LB)) {
 			log("Rule 22");
 			stack.pop();
 			stack.push({type: LEX_LIST, 'value': []});
 			return true;
 		}
-		
-		if (is(stack.peek(), LEX_VALUE) && is(stack.last(1), LEX_LB)) {
+
+		if (is(peek(stack), LEX_VALUE) && is(last(stack, 1), LEX_LB)) {
 			log("Rule 23");
 			var val = stack.pop().value;
 			stack.pop();
@@ -387,9 +412,9 @@ function reduce(stack) {
 			return true;
 		}
 
-		if (is(stack.peek(), LEX_KEY) && (stack.last(1), LEX_COMMA)) {
+		if (is(peek(stack), LEX_KEY) && (last(stack, 1), LEX_COMMA)) {
 			log("Error rule 5");
-			let l = stack.pop();
+			var l = stack.pop();
 			//stack.pop();
 			stack.push({type: LEX_VALUE, 'value': l.value});
 			log("Start subreduce... (" + l.value + ")");
@@ -399,27 +424,27 @@ function reduce(stack) {
 			return true;
 		}
 
-		break;	
+		break;
 
 	case LEX_RCB:
-		if (is(stack.peek(), LEX_KVLIST) && (stack.last(1), LEX_LCB)) {
+		if (is(peek(stack), LEX_KVLIST) && (last(stack, 1), LEX_LCB)) {
 			log("Rule 20");
-			let l = stack.pop();
+			var l = stack.pop();
 			stack.pop();
 			stack.push({'type': LEX_OBJ, 'value': l.value});
 			return true;
 		}
-		
-		if (is(stack.peek(), LEX_LCB)) {
+
+		if (is(peek(stack), LEX_LCB)) {
 			log("Rule 21");
 			stack.pop();
 			stack.push({type: LEX_OBJ, 'value': null});
 			return true;
 		}
 
-		if (is(stack.peek(), LEX_KEY) && (stack.last(1), LEX_COLON)) {
+		if (is(peek(stack), LEX_KEY) && (last(stack, 1), LEX_COLON)) {
 			log("Error rule 4");
-			let l = stack.pop();
+			var l = stack.pop();
 			//stack.pop();
 			stack.push({type: LEX_VALUE, 'value': l.value});
 			log("Start subreduce... (" + l.value + ")");
@@ -428,8 +453,7 @@ function reduce(stack) {
 			stack.push({type: LEX_RCB});
 			return true;
 		}
-
-		throw new Error("Found } that I can't handle.");
+		break;
 	}
 
 
@@ -437,13 +461,6 @@ function reduce(stack) {
 	return false;
 }
 
-
-
-//var str = '"this\n"quote"\ntext"';
-//parse(fs.readFileSync("items.json", {'encoding': 'utf8'})).then(function (res) {
-// 	log("Final\n\n");
-// 	log(JSON.stringify(res));
-//});
 
 
 
@@ -505,11 +522,12 @@ VList = VList key value
 KVList = KVList key value
 
 -- for the case of {"this": that}
-When last in RCB, 
+When last in RCB,
 value = COLON key (re-reduce)
 
--- REMOVED
-
+-- for the case of {"this": that, "another": "maybe"}
+When last is KVList,
+value = COLON key (re-reduce)
 
 -- for the case of ["this", that]
 when last is a RB,
@@ -533,20 +551,20 @@ function compileOST(tree) {
 	if (rawTypes.indexOf((typeof tree)) != -1)
 		return tree;
 
-	if (tree === null)
+	if (tree == null)
 		return null;
 
 	if (Array.isArray(tree)) {
-		let toR = [];
-		while (tree.length > 0)
+		var toR = [];
+		while (tree.length != 0)
 			toR.unshift(compileOST(tree.pop()));
 		return toR;
 	}
-	
+
 
 	if (is(tree, LEX_OBJ)) {
-		let toR = {};
-		if (tree.value === null)
+		var toR = {};
+		if (tree.value == null)
 			return {};
 		tree.value.forEach(function (i) {
 			toR[i.key] = compileOST(i.value);
@@ -554,17 +572,19 @@ function compileOST(tree) {
 		return toR;
 	}
 
+	/* istanbul ignore else  */
 	if (is(tree, LEX_LIST)) {
 		return compileOST(tree.value);
 	}
 
-	throw new Error("Uncaught type in compile: " + JSON.stringify(tree));
+	/* istanbul ignore next */
+	console.error("Uncaught type in compile: " + JSON.stringify(tree));
 
+	/* istanbul ignore next */
+	return null;
 }
 
 
-/*parse('"test"').then(function (res) {
+/*parse('[4]').then(function (res) {
 	console.log(res);
-}).catch(e => {
-	console.log(e);
 });*/
